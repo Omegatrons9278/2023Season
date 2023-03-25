@@ -10,11 +10,14 @@ import com.ctre.phoenix.motorcontrol.can.WPI_TalonFX;
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 
+import edu.wpi.first.cameraserver.CameraServer;
+import edu.wpi.first.wpilibj.BuiltInAccelerometer;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 import edu.wpi.first.wpilibj.motorcontrol.MotorControllerGroup;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 /**
  * The VM is configured to automatically run this class, and to call the functions corresponding to
@@ -23,10 +26,15 @@ import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
  * project.
  */
 public class Robot extends TimedRobot {
-  private static final String kDefaultAuto = "Default";
-  private static final String kCustomAuto = "My Auto";
+  private static final String kDefaultAuto = "Nothing";
+  private static final String kAutoBalance = "Auto Balance";
+  //private static final String kDriveShort = "Driv"
+
   private String m_autoSelected;
   private final SendableChooser<String> m_chooser = new SendableChooser<>();
+  BuiltInAccelerometer mRioAccel;
+  
+  autoBalance aBal;
 
   WPI_TalonFX leftMotor1, leftMotor2, rightMotor1, rightMotor2;
   VictorSPX intakeMouth;
@@ -54,11 +62,13 @@ public class Robot extends TimedRobot {
     arm = new CANSparkMax(13, MotorType.kBrushless);
     arm.setInverted(true);
 
+    CameraServer.startAutomaticCapture(0);
+
     intake2.setInverted(true);
 
     intake = new MotorControllerGroup(intake1, intake2);
-
-    
+    mRioAccel = new BuiltInAccelerometer();
+    aBal = new autoBalance();
 
     leftDrive = new MotorControllerGroup(leftMotor1, leftMotor2);
     rightDrive = new MotorControllerGroup(rightMotor1, rightMotor2);
@@ -67,6 +77,11 @@ public class Robot extends TimedRobot {
 
     driverJoy = new Joystick(0);
     mechJoy = new Joystick(1);
+
+    // Dashboard stuff
+    m_chooser.setDefaultOption("No Auto", kDefaultAuto);
+    m_chooser.addOption("Auto Balance", kAutoBalance);
+
   }
 
   /**
@@ -77,7 +92,10 @@ public class Robot extends TimedRobot {
    * SmartDashboard integrated updating.
    */
   @Override
-  public void robotPeriodic() {}
+  public void robotPeriodic() {
+    aBal.testGyro();
+    
+  }
 
   /**
    * This autonomous (along with the chooser code above) shows how to select between different
@@ -92,21 +110,18 @@ public class Robot extends TimedRobot {
   @Override
   public void autonomousInit() {
     m_autoSelected = m_chooser.getSelected();
-    // m_autoSelected = SmartDashboard.getString("Auto Selector", kDefaultAuto);
+    m_autoSelected = SmartDashboard.getString("Auto Selector", kDefaultAuto);
+    
     System.out.println("Auto selected: " + m_autoSelected);
+    
   }
 
   /** This function is called periodically during autonomous. */
   @Override
   public void autonomousPeriodic() {
-    switch (m_autoSelected) {
-      case kCustomAuto:
-        // Put custom auto code here
-        break;
-      case kDefaultAuto:
-      default:
-        // Put default auto code here
-        break;
+    // autobalance
+    if (m_autoSelected == kAutoBalance) {
+      drive.arcadeDrive(aBal.scoreAndBalance(), 0);
     }
   }
 
@@ -117,29 +132,29 @@ public class Robot extends TimedRobot {
   /** This function is called periodically during operator control. */
   @Override
   public void teleopPeriodic() {
-    drive.arcadeDrive(driverJoy.getRawAxis(1) * -1 * .7, driverJoy.getRawAxis(4) * -1 * .7);
+    drive.arcadeDrive(driverJoy.getRawAxis(1) * -1 * .6, driverJoy.getRawAxis(4) * -1 * .7);
 
     // Mechanisms
 
     if (mechJoy.getRawButton(5)) {
-      intake.set(1);
+      intake.set(.5);
     } else if (mechJoy.getRawButton(6)) {
-      intake.set(-1);
+      intake.set(-.5);
     } else {
       intake.set(0);
     }
 
     if (mechJoy.getPOV() == 0) {
-      arm.set(.5);
+      arm.set(.15);
     } else if (mechJoy.getPOV() == 180) {
-      arm.set(-.5);
+      arm.set(-.15);
     } else {
       arm.set(0);
     }
 
-    if (mechJoy.getPOV() == 90) {
+    if (mechJoy.getRawButton(3)) {
       intakeMouth.set(ControlMode.PercentOutput, .3);
-    } else if (mechJoy.getPOV() == 270) {
+    } else if (mechJoy.getRawButton(2) ) {
       intakeMouth.set(ControlMode.PercentOutput, -.3);
     } else {
       intakeMouth.set(ControlMode.PercentOutput, 0);
